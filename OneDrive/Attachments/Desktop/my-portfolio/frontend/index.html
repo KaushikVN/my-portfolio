@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kaushik V N | Portfolio</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Dynamic Ambient Moving Colors -->
+  <div class="color-orb orb-1"></div>
+  <div class="color-orb orb-2"></div>
+  <div class="color-orb orb-3"></div>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="logo">Kaushik.</div>
+    <ul class="nav-links">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#skills">Skills</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#add-project">Add Project</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero Section -->
+  <header id="home" class="hero">
+    <div class="hero-content">
+      <span class="badge">Engineering Student & Developer</span>
+      <h1>Hi, I'm Kaushik V N</h1>
+      <p>3rd Sem Engineering Student at Sai Vidya Institute of Technology passionate about full-stack web development, software engineering, and database systems.</p>
+      <a href="#projects" class="btn primary-btn">Explore Projects</a>
+    </div>
+  </header>
+
+  <!-- About Section -->
+  <section id="about" class="section">
+    <h2>About Me</h2>
+    <div class="about-card">
+      <p>I am a 3rd semester engineering student at Sai Vidya Institute of Technology with a strong interest in full-stack web development. I love building practical applications, working with modern JavaScript frameworks, and developing cloud-connected backend systems with MongoDB.</p>
+    </div>
+  </section>
+
+  <!-- Skills Section -->
+  <section id="skills" class="section">
+    <h2>Technical Skills</h2>
+    <div class="skills-grid">
+      <div class="skill-tag">HTML5 / CSS3</div>
+      <div class="skill-tag">JavaScript (ES6+)</div>
+      <div class="skill-tag">Node.js</div>
+      <div class="skill-tag">Express.js</div>
+      <div class="skill-tag">MongoDB Atlas</div>
+      <div class="skill-tag">RESTful APIs</div>
+      <div class="skill-tag">Git & GitHub</div>
+      <div class="skill-tag">VS Code</div>
+    </div>
+  </section>
+
+  <!-- Projects Section -->
+  <section id="projects" class="section">
+    <h2>Featured Projects</h2>
+    <div id="projects-container" class="projects-grid">
+      <p class="loading-text">Loading projects from MongoDB database...</p>
+    </div>
+  </section>
+
+  <!-- Add New Project Section -->
+  <section id="add-project" class="section add-project-section">
+    <h2>Add a Project to Database</h2>
+    <form id="project-form" class="form-card">
+      <input type="text" id="title" placeholder="Project Title (e.g., E-Commerce Store)" required />
+      <textarea id="description" placeholder="Project Description" rows="3" required></textarea>
+      <input type="text" id="techStack" placeholder="Tech Stack (comma separated, e.g. React, Node.js, MongoDB)" required />
+      <input type="url" id="link" placeholder="Live Demo or GitHub Link (https://...)" required />
+      <button type="submit" class="btn submit-btn">Save to MongoDB</button>
+    </form>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>&copy; 2026 Kaushik V N. All rights reserved.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
