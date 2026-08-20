@@ -7,99 +7,147 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-
-  <!-- Dynamic Ambient Moving Colors -->
-  <div class="color-orb orb-1"></div>
-  <div class="color-orb orb-2"></div>
-  <div class="color-orb orb-3"></div>
+  <!-- Ambient Gradient Background -->
+  <div class="glow-sphere sphere-1"></div>
+  <div class="glow-sphere sphere-2"></div>
+  <div class="glow-sphere sphere-3"></div>
 
   <!-- Navigation -->
   <nav class="navbar">
-    <div class="logo">Kaushik.</div>
-    <ul class="nav-links">
-      <li><a href="#home">Home</a></li>
-      <li><a href="#about">About</a></li>
-      <li><a href="#skills">Skills</a></li>
-      <li><a href="#projects">Projects</a></li>
-      <li><a href="#resume">Resume</a></li>
-      <li><a href="#add-project">Add Project</a></li>
-    </ul>
+    <div class="nav-container">
+      <a href="#hero" class="nav-logo">Kaushik<span>.</span></a>
+      <ul class="nav-links">
+        <li><a href="#hero">Home</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#skills">Skills</a></li>
+        <li><a href="#projects">Projects</a></li>
+        <li><a href="#resume">Resume</a></li>
+        <li><a href="#add-project" class="nav-btn">Add Project</a></li>
+      </ul>
+    </div>
   </nav>
 
   <!-- Hero Section -->
-  <header id="home" class="hero">
-    <div class="hero-content">
-      <span class="badge">Engineering Student & Developer</span>
-      <h1>Hi, I'm Kaushik V N</h1>
-      <p>3rd Sem Engineering Student at Sai Vidya Institute of Technology passionate about full-stack web development, software engineering, and database systems.</p>
-      <div class="hero-btns">
-        <a href="#projects" class="btn primary-btn">Explore Projects</a>
-        <a href="resume.pdf" target="_blank" class="btn secondary-btn">View Resume</a>
+  <header id="hero" class="hero-section">
+    <div class="hero-card">
+      <span class="hero-badge">Engineering Student & Developer</span>
+      <h1 class="hero-title">Hi, I'm <span class="gradient-text">Kaushik V N</span></h1>
+      <p class="hero-subtitle">
+        3rd Sem Engineering Student at Sai Vidya Institute of Technology passionate about full-stack web development, software engineering, and database systems.
+      </p>
+      <div class="hero-cta">
+        <a href="#projects" class="btn btn-primary">Explore Projects</a>
+        <a href="#resume" class="btn btn-secondary">View Resume</a>
       </div>
     </div>
   </header>
 
-  <!-- About Section -->
-  <section id="about" class="section">
-    <h2>About Me</h2>
-    <div class="about-card">
-      <p>I am a 3rd semester engineering student at Sai Vidya Institute of Technology with a strong interest in full-stack web development. I love building practical applications, working with modern JavaScript frameworks, and developing cloud-connected backend systems with MongoDB.</p>
-    </div>
-  </section>
-
-  <!-- Skills Section -->
-  <section id="skills" class="section">
-    <h2>Technical Skills</h2>
-    <div class="skills-grid">
-      <div class="skill-tag">HTML5 / CSS3</div>
-      <div class="skill-tag">JavaScript (ES6+)</div>
-      <div class="skill-tag">Node.js</div>
-      <div class="skill-tag">Express.js</div>
-      <div class="skill-tag">MongoDB Atlas</div>
-      <div class="skill-tag">RESTful APIs</div>
-      <div class="skill-tag">Git & GitHub</div>
-      <div class="skill-tag">VS Code</div>
-    </div>
-  </section>
-
-  <!-- Projects Section -->
-  <section id="projects" class="section">
-    <h2>Featured Projects</h2>
-    <div id="projects-container" class="projects-grid">
-      <p class="loading-text">Loading projects from MongoDB database...</p>
-    </div>
-  </section>
-
-  <!-- Resume Section -->
-  <section id="resume" class="section">
-    <h2>My Resume</h2>
-    <div class="resume-card">
-      <p>Click below to preview or download a full copy of my updated resume.</p>
-      <div class="resume-actions">
-        <a href="resume.pdf" target="_blank" class="btn resume-btn">Open Full Resume</a>
-        <a href="resume.pdf" download="Kaushik_VN_Resume.pdf" class="btn download-btn">Download PDF</a>
+  <main class="content-container">
+    <!-- About Section -->
+    <section id="about" class="section">
+      <h2 class="section-title">About Me</h2>
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="icon-circle">🎓</div>
+          <h3>Education</h3>
+          <p><strong>B.E. in Computer Science</strong><br>Sai Vidya Institute of Technology<br>Currently in 3rd Semester</p>
+        </div>
+        <div class="about-card">
+          <div class="icon-circle">💻</div>
+          <h3>Focus Areas</h3>
+          <p>Building clean, scalable full-stack web applications using Node.js, Express, MongoDB, and modern frontend tools.</p>
+        </div>
+        <div class="about-card">
+          <div class="icon-circle">🚀</div>
+          <h3>Goal</h3>
+          <p>Developing high-impact software solutions, mastering modern frameworks, and contributing to innovative real-world projects.</p>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Add New Project Section -->
-  <section id="add-project" class="section add-project-section">
-    <h2>Add a Project to Database</h2>
-    <form id="project-form" class="form-card">
-      <input type="text" id="title" placeholder="Project Title (e.g., E-Commerce Store)" required />
-      <textarea id="description" placeholder="Project Description" rows="3" required></textarea>
-      <input type="text" id="techStack" placeholder="Tech Stack (comma separated, e.g. React, Node.js, MongoDB)" required />
-      <input type="url" id="link" placeholder="Live Demo or GitHub Link (https://...)" required />
-      <button type="submit" class="btn submit-btn">Save to MongoDB</button>
-    </form>
-  </section>
+    <!-- Skills Section -->
+    <section id="skills" class="section">
+      <h2 class="section-title">Technical Skills</h2>
+      <div class="skills-wrapper">
+        <span class="skill-tag">HTML5 / CSS3</span>
+        <span class="skill-tag">JavaScript (ES6+)</span>
+        <span class="skill-tag">Node.js</span>
+        <span class="skill-tag">Express.js</span>
+        <span class="skill-tag">MongoDB Atlas</span>
+        <span class="skill-tag">RESTful APIs</span>
+        <span class="skill-tag">Git & GitHub</span>
+        <span class="skill-tag">VS Code</span>
+      </div>
+    </section>
 
-  <!-- Footer -->
-  <footer>
-    <p>&copy; 2026 Kaushik V N. All rights reserved.</p>
+    <!-- Featured Projects (Fetched dynamically from MongoDB) -->
+    <section id="projects" class="section">
+      <h2 class="section-title">Featured Projects</h2>
+      <div id="projects-container" class="projects-grid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading projects from MongoDB Atlas database...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resume Section -->
+    <section id="resume" class="section">
+      <h2 class="section-title">My Resume</h2>
+      <div class="resume-card">
+        <div class="resume-info">
+          <h3>Kaushik V N — Curriculum Vitae</h3>
+          <p>Preview my resume below or download a copy directly.</p>
+          <div class="resume-actions">
+            <a href="resume.pdf" target="_blank" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Open Full Resume
+            </a>
+            <a href="resume.pdf" download="Kaushik_VN_Resume.pdf" class="btn btn-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download PDF
+            </a>
+          </div>
+        </div>
+        <div class="resume-embed-box">
+          <iframe src="resume.pdf#toolbar=0" title="Resume Preview"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Project Form Section -->
+    <section id="add-project" class="section">
+      <h2 class="section-title">Add a Project to Database</h2>
+      <div class="form-container">
+        <form id="project-form">
+          <div class="input-group">
+            <label for="title">Project Title</label>
+            <input type="text" id="title" placeholder="e.g., E-Commerce Platform" required />
+          </div>
+          <div class="input-group">
+            <label for="description">Description</label>
+            <textarea id="description" rows="4" placeholder="Briefly describe what this project does and key features..." required></textarea>
+          </div>
+          <div class="input-group">
+            <label for="techStack">Technologies Used</label>
+            <input type="text" id="techStack" placeholder="e.g., Node.js, Express, MongoDB, HTML, CSS" required />
+          </div>
+          <div class="input-group">
+            <label for="link">Project / GitHub Link</label>
+            <input type="url" id="link" placeholder="https://github.com/KaushikVN/..." required />
+          </div>
+          <button type="submit" class="btn btn-primary submit-btn">Save Project to Cloud</button>
+          <p id="form-feedback" class="feedback-msg"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Kaushik V N. Built with Node.js, Express, and MongoDB Atlas.</p>
   </footer>
 
   <script src="script.js"></script>

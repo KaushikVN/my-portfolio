@@ -9,87 +9,88 @@ async function fetchProjects() {
 
     if (!projects || projects.length === 0) {
       container.innerHTML = `
-        <div style="grid-column: 1/-1; text-align: center; color: #94a3b8;">
+        <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 30px;">
           <p>No projects in the database yet. Use the form below to add your first project!</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = projects.map(project => `
-      <div class="card">
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <h3>${project.title}</h3>
-            <button class="delete-btn" onclick="deleteProject('${project._id}')" title="Delete project">&times;</button>
+    container.innerHTML = projects.map(proj => {
+      const tags = proj.techStack 
+        ? proj.techStack.split(',').map(tag => `<span class="tag">${tag.trim()}</span>`).join('') 
+        : '';
+
+      return `
+        <div class="project-card">
+          <div>
+            <h3>${escapeHtml(proj.title)}</h3>
+            <p>${escapeHtml(proj.description)}</p>
+            <div class="project-tags">${tags}</div>
           </div>
-          <p>${project.description}</p>
+          <a href="${escapeHtml(proj.link)}" target="_blank" class="project-link">View Project &rarr;</a>
         </div>
-        <div>
-          <div class="card-tags">
-            ${(project.techStack || []).map(tech => `<span class="card-tag">${tech.trim()}</span>`).join('')}
-          </div>
-          ${project.link ? `<a href="${project.link}" target="_blank" rel="noopener noreferrer">View Project &rarr;</a>` : ''}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   } catch (error) {
-    console.error('Error fetching projects:', error);
+    console.error('Error loading projects:', error);
     container.innerHTML = `
-      <div style="grid-column: 1/-1; text-align: center; color: #ef4444;">
-        <p>Could not connect to backend server. Make sure your server is running on port 5000.</p>
+      <div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px; font-weight: 600;">
+        Could not connect to backend server.
       </div>
     `;
   }
 }
 
-// Delete a project from MongoDB
-async function deleteProject(id) {
-  if (!confirm('Are you sure you want to delete this project?')) return;
-
-  try {
-    const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-    if (response.ok) {
-      fetchProjects(); // Refresh the list
-    } else {
-      alert('Failed to delete project.');
-    }
-  } catch (error) {
-    console.error('Error deleting project:', error);
-    alert('Error connecting to backend.');
-  }
-}
-
-// Handle Form Submission to add a new project (POST)
-const projectForm = document.getElementById('project-form');
-projectForm.addEventListener('submit', async (e) => {
+// Handle Add Project Form Submission
+document.getElementById('project-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const feedback = document.getElementById('form-feedback');
+  const submitBtn = e.target.querySelector('button[type="submit"]');
 
-  const title = document.getElementById('title').value;
-  const description = document.getElementById('description').value;
-  const techStack = document.getElementById('techStack').value.split(',');
-  const link = document.getElementById('link').value;
+  const newProject = {
+    title: document.getElementById('title').value.trim(),
+    description: document.getElementById('description').value.trim(),
+    techStack: document.getElementById('techStack').value.trim(),
+    link: document.getElementById('link').value.trim()
+  };
 
-  const newProject = { title, description, techStack, link };
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving to Database...';
+  feedback.textContent = '';
 
   try {
-    const response = await fetch(API_URL, {
+    const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProject)
     });
 
-    if (response.ok) {
-      projectForm.reset();
+    if (res.ok) {
+      feedback.style.color = '#16a34a';
+      feedback.textContent = 'Project saved successfully!';
+      document.getElementById('project-form').reset();
       fetchProjects();
     } else {
-      alert('Failed to save project. Please check backend server.');
+      feedback.style.color = '#ef4444';
+      feedback.textContent = 'Failed to save project. Check console logs.';
     }
-  } catch (error) {
-    console.error('Error adding project:', error);
-    alert('Error connecting to backend.');
+  } catch (err) {
+    feedback.style.color = '#ef4444';
+    feedback.textContent = 'Error connecting to database server.';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save Project to Cloud';
   }
 });
 
-// Initial load
+// Helper to escape HTML characters
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
+// Initial fetch on page load
 fetchProjects();
