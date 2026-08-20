@@ -154,6 +154,13 @@ body {
   margin: 0 auto 2.2rem auto;
 }
 
+.hero-btns {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 /* Buttons */
 .btn {
   display: inline-block;
@@ -176,6 +183,18 @@ body {
   background-color: #f8fafc;
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-3px);
 }
 
 .submit-btn {
@@ -223,7 +242,7 @@ body {
 }
 
 /* Glassmorphism Cards */
-.about-card {
+.about-card, .resume-card {
   max-width: 800px;
   margin: 0 auto;
   text-align: center;
@@ -235,6 +254,39 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.8);
   color: #334155;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.resume-card p {
+  margin-bottom: 1.5rem;
+  color: #64748b;
+}
+
+.resume-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.resume-btn {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #ffffff;
+}
+
+.resume-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.25);
+}
+
+.download-btn {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+}
+
+.download-btn:hover {
+  background: #f1f5f9;
+  transform: translateY(-2px);
 }
 
 /* Skills Grid */
