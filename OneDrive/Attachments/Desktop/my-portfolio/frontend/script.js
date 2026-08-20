@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000/api/projects';
+const API_URL = 'https://my-portfolio-backend-o174.onrender.com/api/projects';
 
 // Fetch and display projects from MongoDB
 async function fetchProjects() {
