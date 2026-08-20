@@ -5,23 +5,37 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
+// Enable CORS for all incoming requests
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('Successfully connected to MongoDB Atlas!'))
-  .catch((err) => console.error('MongoDB connection error:', err));
-
-// Project Schema & Model
-const projectSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: { type: String, required: true },
-  techStack: [String],
-  link: String,
-  createdAt: { type: Date, default: Date.now }
+// Health-check route
+app.get('/', (req, res) => {
+  res.send('Portfolio API is running smoothly.');
 });
+
+// MongoDB Connection
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error('ERROR: MONGO_URI environment variable is missing.');
+}
+
+mongoose
+  .connect(MONGO_URI)
+  .then(() => console.log('MongoDB Atlas Connected Successfully!'))
+  .catch((err) => console.error('MongoDB Atlas Connection Error:', err));
+
+// Schema & Model
+const projectSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    techStack: { type: String, required: true },
+    link: { type: String, required: true }
+  },
+  { timestamps: true }
+);
 
 const Project = mongoose.model('Project', projectSchema);
 
@@ -38,7 +52,8 @@ app.get('/api/projects', async (req, res) => {
 // POST: Add a new project
 app.post('/api/projects', async (req, res) => {
   try {
-    const newProject = new Project(req.body);
+    const { title, description, techStack, link } = req.body;
+    const newProject = new Project({ title, description, techStack, link });
     const savedProject = await newProject.save();
     res.status(201).json(savedProject);
   } catch (err) {
@@ -46,18 +61,7 @@ app.post('/api/projects', async (req, res) => {
   }
 });
 
-// DELETE: Remove a project by ID
-app.delete('/api/projects/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await Project.findByIdAndDelete(id);
-    res.json({ message: 'Project deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });

@@ -16,12 +16,16 @@ async function fetchProjects() {
       return;
     }
 
-    container.innerHTML = projects.map(proj => {
-      const tags = proj.techStack 
-        ? proj.techStack.split(',').map(tag => `<span class="tag">${tag.trim()}</span>`).join('') 
-        : '';
+    container.innerHTML = projects
+      .map((proj) => {
+        const tags = proj.techStack
+          ? proj.techStack
+              .split(',')
+              .map((tag) => `<span class="tag">${tag.trim()}</span>`)
+              .join('')
+          : '';
 
-      return `
+        return `
         <div class="project-card">
           <div>
             <h3>${escapeHtml(proj.title)}</h3>
@@ -31,7 +35,8 @@ async function fetchProjects() {
           <a href="${escapeHtml(proj.link)}" target="_blank" class="project-link">View Project &rarr;</a>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
   } catch (error) {
     console.error('Error loading projects:', error);
     container.innerHTML = `
@@ -87,8 +92,16 @@ document.getElementById('project-form').addEventListener('submit', async (e) => 
 // Helper to escape HTML characters
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  return str.replace(
+    /[&<>'"]/g,
+    (tag) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[tag] || tag)
   );
 }
 
