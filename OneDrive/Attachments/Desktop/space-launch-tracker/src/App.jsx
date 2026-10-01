@@ -6,9 +6,11 @@ import {
   History, CheckCircle2, XCircle, Wind, CloudRain, Thermometer,
   Calendar, Download, Gauge, Compass, Zap, Sparkles, Box, Eye,
   Sun, Moon, Star, Tv, ShieldAlert, ShieldCheck, FastForward, RotateCcw,
-  AlertTriangle, Radio, Crosshair, Mic, Terminal, ChevronRight, Orbit
+  AlertTriangle, Radio, Crosshair, Mic, Terminal, ChevronRight, Orbit,
+  Flame, Skull, Siren, Waves, GraduationCap, Calculator, FileSpreadsheet,
+  Globe2, Target, HeartHandshake, Cpu
 } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Polygon } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Polygon, Circle } from "react-leaflet";
 import L from "leaflet";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -53,7 +55,390 @@ function computeConjunctionRisk(issPos, debrisList) {
   }).sort((a, b) => a.missDistance - b.missDistance);
 }
 
-// --- CAPCOM RADIO & QUINDAR AUDIO ENGINE ---
+// --- MISSION CONFIG & TELEMETRY ENGINE ---
+function getMissionFlightConfig(launch) {
+  if (!launch) {
+    return {
+      type: "Low Earth Orbit (LEO)",
+      targetAlt: 420,
+      insertionAlt: 320,
+      targetVel: 27500,
+      maxDownrange: 1650,
+      maxFlightTime: 600,
+      mecoTime: 155,
+      stageSepTime: 162,
+      seco1Time: 510,
+      deployTime: 540,
+      inclinationDeg: 51.6,
+      milestones: []
+    };
+  }
+
+  const orbit = (launch.mission?.orbit?.name || "").toLowerCase();
+  const rocket = (launch.rocket?.configuration?.name || "").toLowerCase();
+
+  if (orbit.includes("geostationary") || orbit.includes("gto") || orbit.includes("geo") || orbit.includes("transfer")) {
+    return {
+      type: "Geostationary Transfer (GTO)",
+      targetAlt: 35786,
+      insertionAlt: 650,
+      targetVel: 36200,
+      maxDownrange: 7800,
+      maxFlightTime: 1800,
+      mecoTime: 165,
+      stageSepTime: 172,
+      seco1Time: 520,
+      deployTime: 1800,
+      inclinationDeg: 28.5,
+      milestones: [
+        { id: 1, label: "Max-Q", t: "T+62s" },
+        { id: 2, label: "MECO", t: "T+165s" },
+        { id: 3, label: "Stage Sep", t: "T+172s" },
+        { id: 4, label: "Fairing Sep", t: "T+215s" },
+        { id: 5, label: "SECO-1", t: "T+520s" },
+        { id: 6, label: "SES-2 Burn", t: "T+1620s" },
+        { id: 7, label: "GTO Orbit", t: "T+1800s" },
+      ]
+    };
+  }
+
+  if (orbit.includes("polar") || orbit.includes("sso") || orbit.includes("sun-synchronous") || rocket.includes("pslv")) {
+    return {
+      type: "Sun-Synchronous Polar (SSO)",
+      targetAlt: 680,
+      insertionAlt: 680,
+      targetVel: 26800,
+      maxDownrange: 3200,
+      maxFlightTime: 950,
+      mecoTime: 145,
+      stageSepTime: 152,
+      seco1Time: 620,
+      deployTime: 920,
+      inclinationDeg: 98.2,
+      milestones: [
+        { id: 1, label: "Max-Q", t: "T+55s" },
+        { id: 2, label: "MECO", t: "T+145s" },
+        { id: 3, label: "Stage Sep", t: "T+152s" },
+        { id: 4, label: "Fairing Sep", t: "T+190s" },
+        { id: 5, label: "Upper Stage", t: "T+480s" },
+        { id: 6, label: "Terminal SECO", t: "T+620s" },
+        { id: 7, label: "Polar Insert", t: "T+920s" },
+      ]
+    };
+  }
+
+  return {
+    type: "Low Earth Orbit (LEO)",
+    targetAlt: 420,
+    insertionAlt: 320,
+    targetVel: 27500,
+    maxDownrange: 1650,
+    maxFlightTime: 600,
+    mecoTime: 155,
+    stageSepTime: 162,
+    seco1Time: 510,
+    deployTime: 540,
+    inclinationDeg: 51.6,
+    milestones: [
+      { id: 1, label: "Max-Q", t: "T+60s" },
+      { id: 2, label: "MECO", t: "T+155s" },
+      { id: 3, label: "Stage Sep", t: "T+162s" },
+      { id: 4, label: "SES-1 Burn", t: "T+170s" },
+      { id: 5, label: "Fairing Sep", t: "T+195s" },
+      { id: 6, label: "SECO-1", t: "T+510s" },
+      { id: 7, label: "Payload Deploy", t: "T+540s" },
+    ]
+  };
+}
+
+function computeTelemetry(metSeconds, config) {
+  const t = Math.max(0, metSeconds);
+  const { mecoTime = 155, seco1Time = 510, deployTime = 540, targetVel = 27500, insertionAlt = 320, maxDownrange = 1650 } = config;
+
+  let velocity = 0;
+  if (t < mecoTime) {
+    velocity = (t / mecoTime) * (targetVel * 0.32);
+  } else if (t < seco1Time) {
+    const progress = (t - mecoTime) / (seco1Time - mecoTime);
+    velocity = targetVel * 0.32 + progress * (targetVel * 0.68);
+  } else {
+    velocity = targetVel + Math.sin(t / 8) * 15;
+  }
+
+  let altitude = 0;
+  if (t < mecoTime) {
+    altitude = Math.pow(t / mecoTime, 2) * 65;
+  } else if (t < seco1Time) {
+    const progress = (t - mecoTime) / (seco1Time - mecoTime);
+    altitude = 65 + progress * (insertionAlt - 65);
+  } else {
+    altitude = insertionAlt + Math.cos(t / 15) * 1.5;
+  }
+
+  const downrange = Math.min(maxDownrange, Math.pow(t / deployTime, 1.6) * maxDownrange);
+
+  let gForce = 1.0;
+  if (t < mecoTime) {
+    gForce = 1.0 + (t / mecoTime) * 3.2;
+  } else if (t < seco1Time) {
+    gForce = 1.2 + ((t - mecoTime) / (seco1Time - mecoTime)) * 2.1;
+  } else {
+    gForce = 0.0;
+  }
+
+  let throttle = 100;
+  if (t >= 55 && t <= 75) throttle = 72;
+  if (t >= mecoTime - 8 && t < mecoTime) throttle = 60;
+  if (t >= mecoTime && t < mecoTime + 7) throttle = 0;
+  if (t > seco1Time) throttle = 0;
+
+  let currentEvent = "Pad Cleared & Vertical Ascent";
+  let activePhase = 1;
+
+  if (t >= deployTime) {
+    currentEvent = `${config.type} Injection Confirmed`;
+    activePhase = 7;
+  } else if (t >= seco1Time) {
+    currentEvent = "SECO-1 (Secondary Cut-Off)";
+    activePhase = 6;
+  } else if (t >= 195) {
+    currentEvent = "Payload Fairing Jettison";
+    activePhase = 5;
+  } else if (t >= (config.stageSepTime || 162)) {
+    currentEvent = "Stage 2 Vacuum Engine Start";
+    activePhase = 4;
+  } else if (t >= mecoTime) {
+    currentEvent = "MECO & Stage 1 Separation";
+    activePhase = 3;
+  } else if (t >= 60) {
+    currentEvent = "Max-Q Dynamic Stress Bucket";
+    activePhase = 2;
+  }
+
+  return {
+    velocity: Math.round(velocity),
+    altitude: parseFloat(altitude.toFixed(1)),
+    downrange: Math.round(downrange),
+    gForce: parseFloat(gForce.toFixed(2)),
+    throttle,
+    currentEvent,
+    activePhase
+  };
+}
+
+// --- PAYLOAD SATELLITE SPECS, PURPOSE & OUTCOMES RESOLVER ---
+function getSatelliteSpecs(launch) {
+  const name = (launch?.name || "").toLowerCase();
+  const desc = (launch?.mission?.description || "").toLowerCase();
+  const orbit = (launch?.mission?.orbit?.name || "").toLowerCase();
+
+  if (name.includes("starlink") || desc.includes("starlink")) {
+    return {
+      type: "Starlink Constellation Satellite",
+      bus: "SpaceX Starlink v2 Mini Modular Bus",
+      mass: "~16,500 kg (Full Launch Batch)",
+      power: "Deployable Photovoltaic Array (Argon Hall Thrusters)",
+      instruments: "Ku/Ka Band Phased Arrays, Space-to-Space Laser Intersatellite Links",
+      dispenser: "Rotational Tensioner Mechanical Dispenser",
+      meshVariant: "starlink",
+      badgeText: "Global Low-Latency Broadband",
+      intention: "Deploy high-density low Earth orbit satellites to deliver high-speed, low-latency broadband internet across remote landmasses, maritime routes, and airborne commercial flights.",
+      keyOutcomes: [
+        "Delivers sub-35ms low-latency broadband access to unserved rural and polar communities.",
+        "Provides mission-critical emergency telecom backup during severe natural disasters and infrastructure blackouts.",
+        "Generates commercial launch revenue used directly to fund interplanetary exploration programs."
+      ],
+      academicFocus: "High-throughput optical inter-satellite mesh routing and autonomous orbital collision avoidance algorithms."
+    };
+  }
+
+  if (name.includes("crew") || name.includes("dragon") || desc.includes("crew") || desc.includes("iss")) {
+    return {
+      type: "Human Spaceflight & Crew Module",
+      bus: "Pressurized Crew Capsule & Service Trunk",
+      mass: "9,500 - 12,500 kg",
+      power: "Trunk-Mounted Solar Panel Arrays & Backup Li-Ion Cells",
+      instruments: "Autonomous Optical Docking Sensors, Environmental Control & Life Support (ECLSS)",
+      dispenser: "SuperDraco Emergency Abort Tower / Mechanical Clamp Ring",
+      meshVariant: "generic",
+      badgeText: "Astronaut Orbital Transport",
+      intention: "Transport international astronauts, scientific equipment, and biological research payloads to and from the International Space Station.",
+      keyOutcomes: [
+        "Enables zero-gravity microgravity pharmaceutical and biomedical research.",
+        "Provides human operational maintenance for space station science laboratories.",
+        "Advances deep-space life-support technology required for future Moon and Mars missions."
+      ],
+      academicFocus: "Closed-loop atmospheric regeneration, thermal shielding re-entry dynamics, and microgravity bone density loss studies."
+    };
+  }
+
+  if (orbit.includes("gto") || orbit.includes("geo") || name.includes("tel") || name.includes("sat") || desc.includes("telecom")) {
+    return {
+      type: "Geostationary Telecommunications Satellite",
+      bus: "Eurostar E3000 / Spacebus Neo Platform",
+      mass: "4,500 - 6,500 kg",
+      power: "Dual High-Efficiency Solar Wings (15 kW Output)",
+      instruments: "Multi-Spot High-Throughput Ka/Ku/C-Band Transponders, Steerable Parabolic Dishes",
+      dispenser: "1194VS Low-Shock Clamp Band",
+      meshVariant: "commsat",
+      badgeText: "Continental Telecom & Broadcast",
+      intention: "Operate at 35,786 km in a stationary orbital position relative to Earth's surface to provide uninterrupted, continental-scale telecommunications, direct-to-home broadcast, and military connectivity.",
+      keyOutcomes: [
+        "Supports 24/7 direct-to-home satellite television, cellular backhaul, and maritime communication channels.",
+        "Ensures sovereign emergency communication channels during terrestrial fiber-optic cutoffs.",
+        "Provides high-reliability tele-education and telemedicine links across vast geographical areas."
+      ],
+      academicFocus: "Station-keeping perturbation dynamics, solar radiation pressure compensations, and high-frequency RF attenuation."
+    };
+  }
+
+  if (orbit.includes("polar") || orbit.includes("sso") || desc.includes("earth observation") || desc.includes("optical") || desc.includes("radar")) {
+    return {
+      type: "Earth Observation & Remote Sensing Probe",
+      bus: "ISRO IMS-2 / AstroBus High-Resolution Platform",
+      mass: "1,200 - 2,500 kg",
+      power: "Gallium-Arsenide Dual Fold Solar Wings (~3.5 kW)",
+      instruments: "Sub-Meter Panchromatic Multispectral Imagers, Synthetic Aperture Radar (SAR)",
+      dispenser: "Pneumatic Mechanical Push Separation Clamp",
+      meshVariant: "probe",
+      badgeText: "Climate & Agriculture Monitoring",
+      intention: "Capture calibrated, sun-synchronous optical and radar imagery of the planet under identical solar lighting angles every pass to monitor planetary environmental changes and natural resources.",
+      keyOutcomes: [
+        "Monitors crop yield health, soil moisture levels, and drought warning indicators for nationwide agriculture planning.",
+        "Generates rapid flood extent maps, cyclone tracking data, and forest fire progression vectors for disaster agencies.",
+        "Facilitates precise urban infrastructure planning, coastal erosion defense, and border cartography."
+      ],
+      academicFocus: "Multispectral pixel reflectance spectroscopy, Doppler centroid calibration in SAR, and orbit precession mechanics."
+    };
+  }
+
+  return {
+    type: "Scientific Technology Demonstration Satellite",
+    bus: "Modular Standard Satellite Bus",
+    mass: "1,000 - 3,500 kg",
+    power: "Dual Photovoltaic Wings & Battery Bank",
+    instruments: "Telemetry Transceiver, Magnetometers, Cosmic Radiation Dosimeters",
+    dispenser: "Low-Shock Mechanical Push Springs",
+    meshVariant: "generic",
+    badgeText: "Orbital Technology Demo",
+    intention: "Validate next-generation space hardware, orbital autonomy algorithms, and in-situ space environment measurements prior to operational constellation deployment.",
+    keyOutcomes: [
+      "Demonstrates high-reliability performance of novel micro-thrusters, sensors, or solar cells in harsh space environments.",
+      "Gathers real-time cosmic radiation, magnetospheric, and solar flux data for scientific researchers.",
+      "Advances national aerospace engineering capabilities through flight heritage qualification."
+    ],
+    academicFocus: "Thermal vacuum equilibrium modeling, solar particle flux degradation, and orbital lifetime decay analysis."
+  };
+}
+
+// --- RESEARCH & ASTRODYNAMICS MATH SUITE ---
+function computeOrbitalMechanics(perigeeKm, apogeeKm, inclinationDeg) {
+  const R_EARTH = 6378.137;
+  const MU = 398600.4418;
+  const g0 = 9.80665;
+
+  const r_p = R_EARTH + (perigeeKm || 300);
+  const r_a = R_EARTH + (apogeeKm || 400);
+
+  const a = (r_p + r_a) / 2;
+  const e = Math.abs((r_a - r_p) / (r_a + r_p));
+  const T_sec = 2 * Math.PI * Math.sqrt(Math.pow(a, 3) / MU);
+  const periodMin = (T_sec / 60).toFixed(2);
+  const energy = (-MU / (2 * a)).toFixed(2);
+  const v_perigee = (Math.sqrt(MU * (2 / r_p - 1 / a)) * 3600).toFixed(0);
+  const v_apogee = (Math.sqrt(MU * (2 / r_a - 1 / a)) * 3600).toFixed(0);
+
+  const Isp_eff = 332;
+  const massRatio = 14.8;
+  const deltaV = Math.round(Isp_eff * g0 * Math.log(massRatio));
+
+  return {
+    semiMajorAxis: Math.round(a),
+    eccentricity: e.toFixed(5),
+    inclination: (inclinationDeg || 51.6).toFixed(2),
+    periodMin,
+    energy,
+    v_perigee,
+    v_apogee,
+    deltaV,
+    isp: Isp_eff,
+    payloadFraction: ((1 / massRatio) * 100).toFixed(2)
+  };
+}
+
+function exportTelemetryCSV(launch, config) {
+  const steps = 40;
+  let csvContent = "data:text/csv;charset=utf-8,Time_Seconds,Velocity_kmh,Altitude_km,Downrange_km,G_Force,Event\n";
+
+  for (let i = 0; i <= steps; i++) {
+    const t = Math.round((config.maxFlightTime / steps) * i);
+    const tel = computeTelemetry(t, config);
+    csvContent += `${t},${tel.velocity},${tel.altitude},${tel.downrange},${tel.gForce},"${tel.currentEvent}"\n`;
+  }
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `${(launch?.name || "mission").replace(/[^a-z0-9]/gi, "_").toLowerCase()}_research_telemetry.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// --- TELEMETRY SONIFIER ---
+class TelemetrySonifier {
+  constructor() {
+    this.ctx = null;
+    this.osc = null;
+    this.gain = null;
+    this.active = false;
+  }
+
+  start() {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      this.ctx = new AudioContext();
+      this.osc = this.ctx.createOscillator();
+      this.gain = this.ctx.createGain();
+
+      this.osc.type = "sawtooth";
+      this.osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+      this.gain.gain.setValueAtTime(0.015, this.ctx.currentTime);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+
+      this.osc.connect(filter);
+      filter.connect(this.gain);
+      this.gain.connect(this.ctx.destination);
+
+      this.osc.start();
+      this.active = true;
+    } catch {}
+  }
+
+  updateVelocity(vel) {
+    if (!this.active || !this.osc || !this.ctx) return;
+    const targetFreq = 180 + (Math.min(28000, vel) / 28000) * 850;
+    this.osc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.1);
+  }
+
+  stop() {
+    if (this.osc) {
+      try {
+        this.osc.stop();
+        this.osc.disconnect();
+      } catch {}
+    }
+    this.active = false;
+  }
+}
+
+const sonifierEngine = new TelemetrySonifier();
+
+// --- AUDIO FX ---
 const playQuindarTone = (isIntro = true) => {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -74,9 +459,7 @@ const playQuindarTone = (isIntro = true) => {
 
     osc.start();
     osc.stop(ctx.currentTime + 0.25);
-  } catch {
-    // blocked
-  }
+  } catch {}
 };
 
 const playCapComVoice = (text) => {
@@ -122,9 +505,30 @@ const playRumbleSound = () => {
     gain.connect(ctx.destination);
     noise.start();
     noise.stop(ctx.currentTime + 2.5);
-  } catch {
-    // blocked
-  }
+  } catch {}
+};
+
+const playAlarmSiren = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(440, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(880, ctx.currentTime + 0.3);
+    osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.6);
+
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.8);
+  } catch {}
 };
 
 const downloadCalendarInvite = (launch) => {
@@ -297,224 +701,6 @@ const debrisIcon = new L.DivIcon({
   iconAnchor: [6, 6],
 });
 
-function getSatelliteSpecs(launch) {
-  const name = (launch?.name || "").toLowerCase();
-  const desc = (launch?.mission?.description || "").toLowerCase();
-  const orbit = (launch?.mission?.orbit?.name || "").toLowerCase();
-
-  if (name.includes("starlink") || desc.includes("starlink")) {
-    return {
-      type: "Starlink Constellation Stack",
-      bus: "SpaceX Starlink v2 Mini",
-      mass: "~16,500 kg (Full Batch)",
-      power: "Deployable Photovoltaic Array",
-      instruments: "Ku/Ka Band Phased Arrays, Intersatellite Laser Links",
-      dispenser: "Rotational Tensioner Mechanical Dispenser",
-      meshVariant: "starlink"
-    };
-  }
-
-  if (orbit.includes("gto") || orbit.includes("geo") || name.includes("tel") || name.includes("sat") || desc.includes("telecom")) {
-    return {
-      type: "Geostationary Comms Sat",
-      bus: "Eurostar E3000 / Spacebus Neo",
-      mass: "4,500 - 6,500 kg",
-      power: "Dual High-Efficiency Wings (15 kW)",
-      instruments: "Multi-Spot Ka/Ku Band Transponders, Steerable Reflectors",
-      dispenser: "1194VS Low-Shock Clamp Band",
-      meshVariant: "commsat"
-    };
-  }
-
-  if (orbit.includes("polar") || orbit.includes("sso") || desc.includes("earth observation") || desc.includes("optical")) {
-    return {
-      type: "Remote Sensing Earth Observer",
-      bus: "ISRO IMS-2 / AstroBus Platform",
-      mass: "1,200 - 2,200 kg",
-      power: "Gallium-Arsenide Dual Fold (~3.5 kW)",
-      instruments: "High-Resolution Panchromatic Optics, SAR Radar",
-      dispenser: "Pneumatic Mechanical Push Ring",
-      meshVariant: "probe"
-    };
-  }
-
-  return {
-    type: "Modular Orbital Vehicle",
-    bus: "Integrated Payload Bus",
-    mass: "1,000 - 3,500 kg",
-    power: "Deployable Photovoltaic Wings",
-    instruments: "Telemetry Radio Transceiver, Science Suite",
-    dispenser: "Spring Push Separation Ring",
-    meshVariant: "generic"
-  };
-}
-
-function getMissionFlightConfig(launch) {
-  if (!launch) {
-    return {
-      type: "Low Earth Orbit (LEO)",
-      targetAlt: 420,
-      insertionAlt: 320,
-      targetVel: 27500,
-      maxDownrange: 1650,
-      maxFlightTime: 600,
-      mecoTime: 155,
-      stageSepTime: 162,
-      seco1Time: 510,
-      deployTime: 540,
-      milestones: []
-    };
-  }
-
-  const orbit = (launch.mission?.orbit?.name || "").toLowerCase();
-  const rocket = (launch.rocket?.configuration?.name || "").toLowerCase();
-
-  if (orbit.includes("geostationary") || orbit.includes("gto") || orbit.includes("geo") || orbit.includes("transfer")) {
-    return {
-      type: "Geostationary Transfer (GTO)",
-      targetAlt: 35786,
-      insertionAlt: 650,
-      targetVel: 36200,
-      maxDownrange: 7800,
-      maxFlightTime: 1800,
-      mecoTime: 165,
-      stageSepTime: 172,
-      seco1Time: 520,
-      deployTime: 1800,
-      milestones: [
-        { id: 1, label: "Max-Q", t: "T+62s" },
-        { id: 2, label: "MECO", t: "T+165s" },
-        { id: 3, label: "Stage Sep", t: "T+172s" },
-        { id: 4, label: "Fairing Sep", t: "T+215s" },
-        { id: 5, label: "SECO-1", t: "T+520s" },
-        { id: 6, label: "SES-2 Burn", t: "T+1620s" },
-        { id: 7, label: "GTO Orbit", t: "T+1800s" },
-      ]
-    };
-  }
-
-  if (orbit.includes("polar") || orbit.includes("sso") || orbit.includes("sun-synchronous") || rocket.includes("pslv")) {
-    return {
-      type: "Sun-Synchronous Polar (SSO)",
-      targetAlt: 680,
-      insertionAlt: 680,
-      targetVel: 26800,
-      maxDownrange: 3200,
-      maxFlightTime: 950,
-      mecoTime: 145,
-      stageSepTime: 152,
-      seco1Time: 620,
-      deployTime: 920,
-      milestones: [
-        { id: 1, label: "Max-Q", t: "T+55s" },
-        { id: 2, label: "MECO", t: "T+145s" },
-        { id: 3, label: "Stage Sep", t: "T+152s" },
-        { id: 4, label: "Fairing Sep", t: "T+190s" },
-        { id: 5, label: "Upper Stage", t: "T+480s" },
-        { id: 6, label: "Terminal SECO", t: "T+620s" },
-        { id: 7, label: "Polar Insert", t: "T+920s" },
-      ]
-    };
-  }
-
-  return {
-    type: "Low Earth Orbit (LEO)",
-    targetAlt: 420,
-    insertionAlt: 320,
-    targetVel: 27500,
-    maxDownrange: 1650,
-    maxFlightTime: 600,
-    mecoTime: 155,
-    stageSepTime: 162,
-    seco1Time: 510,
-    deployTime: 540,
-    milestones: [
-      { id: 1, label: "Max-Q", t: "T+60s" },
-      { id: 2, label: "MECO", t: "T+155s" },
-      { id: 3, label: "Stage Sep", t: "T+162s" },
-      { id: 4, label: "SES-1 Burn", t: "T+170s" },
-      { id: 5, label: "Fairing Sep", t: "T+195s" },
-      { id: 6, label: "SECO-1", t: "T+510s" },
-      { id: 7, label: "Payload Deploy", t: "T+540s" },
-    ]
-  };
-}
-
-function computeTelemetry(metSeconds, config) {
-  const t = Math.max(0, metSeconds);
-  const { mecoTime = 155, seco1Time = 510, deployTime = 540, targetVel = 27500, insertionAlt = 320, maxDownrange = 1650 } = config;
-
-  let velocity = 0;
-  if (t < mecoTime) {
-    velocity = (t / mecoTime) * (targetVel * 0.32);
-  } else if (t < seco1Time) {
-    const progress = (t - mecoTime) / (seco1Time - mecoTime);
-    velocity = targetVel * 0.32 + progress * (targetVel * 0.68);
-  } else {
-    velocity = targetVel + Math.sin(t / 8) * 15;
-  }
-
-  let altitude = 0;
-  if (t < mecoTime) {
-    altitude = Math.pow(t / mecoTime, 2) * 65;
-  } else if (t < seco1Time) {
-    const progress = (t - mecoTime) / (seco1Time - mecoTime);
-    altitude = 65 + progress * (insertionAlt - 65);
-  } else {
-    altitude = insertionAlt + Math.cos(t / 15) * 1.5;
-  }
-
-  const downrange = Math.min(maxDownrange, Math.pow(t / deployTime, 1.6) * maxDownrange);
-
-  let gForce = 1.0;
-  if (t < mecoTime) {
-    gForce = 1.0 + (t / mecoTime) * 3.2;
-  } else if (t < seco1Time) {
-    gForce = 1.2 + ((t - mecoTime) / (seco1Time - mecoTime)) * 2.1;
-  } else {
-    gForce = 0.0;
-  }
-
-  let throttle = 100;
-  if (t >= 55 && t <= 75) throttle = 72;
-  if (t >= mecoTime - 8 && t < mecoTime) throttle = 60;
-  if (t >= mecoTime && t < mecoTime + 7) throttle = 0;
-  if (t > seco1Time) throttle = 0;
-
-  let currentEvent = "Pad Cleared & Vertical Ascent";
-  let activePhase = 1;
-
-  if (t >= deployTime) {
-    currentEvent = `${config.type} Injection Confirmed`;
-    activePhase = 7;
-  } else if (t >= seco1Time) {
-    currentEvent = "SECO-1 (Secondary Cut-Off)";
-    activePhase = 6;
-  } else if (t >= 195) {
-    currentEvent = "Payload Fairing Jettison";
-    activePhase = 5;
-  } else if (t >= (config.stageSepTime || 162)) {
-    currentEvent = "Stage 2 Vacuum Engine Start";
-    activePhase = 4;
-  } else if (t >= mecoTime) {
-    currentEvent = "MECO & Stage 1 Separation";
-    activePhase = 3;
-  } else if (t >= 60) {
-    currentEvent = "Max-Q Dynamic Stress Bucket";
-    activePhase = 2;
-  }
-
-  return {
-    velocity: Math.round(velocity),
-    altitude: parseFloat(altitude.toFixed(1)),
-    downrange: Math.round(downrange),
-    gForce: parseFloat(gForce.toFixed(2)),
-    throttle,
-    currentEvent,
-    activePhase
-  };
-}
-
 // --- 3D SATELLITE & ROCKET HARDWARE ---
 function SatelliteInsideBay({ variant = "generic", isDeployed = false }) {
   const satRef = useRef();
@@ -573,7 +759,7 @@ function SatelliteInsideBay({ variant = "generic", isDeployed = false }) {
   );
 }
 
-function DynamicRocket3D({ rocketName = "", satelliteVariant = "generic", isCutaway = false, stagingStep = 0 }) {
+function DynamicRocket3D({ rocketName = "", satelliteVariant = "generic", isCutaway = false, stagingStep = 0, isFtsAborted = false }) {
   const rocketRef = useRef();
   const boosterLeftRef = useRef();
   const boosterRightRef = useRef();
@@ -582,7 +768,13 @@ function DynamicRocket3D({ rocketName = "", satelliteVariant = "generic", isCuta
   const fairingRightRef = useRef();
 
   useFrame((_, delta) => {
-    if (rocketRef.current) rocketRef.current.rotation.y += delta * 0.4;
+    if (rocketRef.current) {
+      rocketRef.current.rotation.y += delta * 0.4;
+      if (isFtsAborted) {
+        rocketRef.current.rotation.z += delta * 2.5;
+        rocketRef.current.position.y -= delta * 1.5;
+      }
+    }
 
     if (stagingStep >= 1) {
       if (boosterLeftRef.current) {
@@ -639,7 +831,7 @@ function DynamicRocket3D({ rocketName = "", satelliteVariant = "generic", isCuta
       <group ref={stage1Ref} position={[0, 0.8, 0]}>
         <mesh>
           <cylinderGeometry args={[0.29, 0.29, 2.2, 32]} />
-          <meshStandardMaterial color="#f1f5f9" metalness={0.6} />
+          <meshStandardMaterial color={isFtsAborted ? "#ef4444" : "#f1f5f9"} metalness={0.6} />
         </mesh>
         <mesh position={[0, -1.15, 0]}>
           <cylinderGeometry args={[0.22, 0.28, 0.15, 32]} />
@@ -674,7 +866,7 @@ function DynamicRocket3D({ rocketName = "", satelliteVariant = "generic", isCuta
 
       <mesh position={[0, 2.1, 0]}>
         <cylinderGeometry args={[0.29, 0.29, 0.65, 32]} />
-        <meshStandardMaterial color="#cbd5e1" metalness={0.5} />
+        <meshStandardMaterial color={isFtsAborted ? "#f97316" : "#cbd5e1"} metalness={0.5} />
       </mesh>
 
       <SatelliteInsideBay variant={satelliteVariant} isDeployed={stagingStep >= 4} />
@@ -908,11 +1100,12 @@ function LaunchCard({ launch, onSelect, voiceEnabled, onSimulateCountdown, isArc
   const statusName = launch.status?.name || "TBD";
   const isSuccess = statusName === "Launch Successful" || statusName === "Go for Launch";
   const orbitProfile = getMissionFlightConfig(launch);
+  const satSpecs = useMemo(() => getSatelliteSpecs(launch), [launch]);
 
   return (
     <div className="bg-[#0b1329]/80 backdrop-blur-xl border border-slate-800/80 hover:border-cyan-500/60 rounded-2xl overflow-hidden transition-all duration-300 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_25px_rgba(6,182,212,0.2)] group hover:-translate-y-1">
       <div className="p-6">
-        <div className="flex items-center justify-between gap-2 mb-3.5">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 bg-cyan-950/80 px-3 py-1 rounded-lg border border-cyan-800/60 truncate max-w-[50%]">
             {launch.launch_service_provider?.name || "Agency"}
           </span>
@@ -934,9 +1127,17 @@ function LaunchCard({ launch, onSelect, voiceEnabled, onSimulateCountdown, isArc
           </div>
         </div>
 
-        <h3 onClick={() => onSelect(launch)} className="text-lg font-extrabold text-slate-100 mb-1.5 line-clamp-2 cursor-pointer group-hover:text-cyan-300 transition-colors">
+        <h3 onClick={() => onSelect(launch)} className="text-lg font-extrabold text-slate-100 mb-1 line-clamp-2 cursor-pointer group-hover:text-cyan-300 transition-colors">
           {launch.name}
         </h3>
+
+        {/* Dynamic Purpose Tag on Card */}
+        <div className="mb-3">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/60">
+            <Target className="w-3 h-3 text-indigo-400" />
+            {satSpecs.badgeText}
+          </span>
+        </div>
 
         <div className="text-[11px] text-cyan-400/90 font-mono mb-4 flex items-center gap-1.5">
           <Orbit className="w-3 h-3 text-cyan-400" />
@@ -1008,7 +1209,7 @@ function LaunchCard({ launch, onSelect, voiceEnabled, onSimulateCountdown, isArc
 }
 
 // --- ADVANCED RADAR MAP ---
-function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, setShowDebrisRadar, showTerminator, setShowTerminator }) {
+function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, setShowDebrisRadar, showTerminator, setShowTerminator, showHazardZones, setShowHazardZones }) {
   const [mapStyle, setMapStyle] = useState("dark");
 
   const solarData = useMemo(() => computeSolarTerminatorPoints(), []);
@@ -1043,7 +1244,16 @@ function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, se
 
   return (
     <div className="relative w-full h-[660px] rounded-3xl overflow-hidden border border-cyan-500/40 shadow-[0_0_40px_rgba(6,182,212,0.15)] bg-[#030712]">
-      <div className="absolute top-4 right-4 z-[400] flex items-center gap-2 bg-[#050a17]/90 backdrop-blur-xl p-2 rounded-2xl border border-cyan-900/40 shadow-2xl">
+      <div className="absolute top-4 right-4 z-[400] flex items-center gap-2 bg-[#050a17]/90 backdrop-blur-xl p-2 rounded-2xl border border-cyan-900/40 shadow-2xl flex-wrap">
+        <button
+          onClick={() => setShowHazardZones(!showHazardZones)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all ${
+            showHazardZones ? "bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.5)]" : "text-slate-300 hover:text-white"
+          }`}
+        >
+          <Siren className="w-3.5 h-3.5" />
+          {showHazardZones ? "Blast Zones: ON" : "Blast: OFF"}
+        </button>
         <button
           onClick={() => setShowDebrisRadar(!showDebrisRadar)}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all ${
@@ -1060,7 +1270,7 @@ function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, se
           }`}
         >
           {showTerminator ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-          {showTerminator ? "Solar Line: On" : "Solar: Off"}
+          {showTerminator ? "Solar: On" : "Solar: Off"}
         </button>
         <button
           onClick={() => setMapStyle("dark")}
@@ -1079,7 +1289,7 @@ function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, se
       {issData && (
         <div className="absolute top-4 left-4 z-[400] bg-[#050a17]/90 backdrop-blur-xl px-4 py-3 rounded-2xl border border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.2)] text-xs flex flex-col gap-1 font-mono">
           <div className="flex items-center gap-2 text-rose-400 font-extrabold uppercase tracking-wider text-[11px]">
-            <Satellite className="w-4 h-4 animate-spin" /> ISS Live Orbital Position
+            <Satellite className="w-4 h-4 animate-spin" /> ISS Live Orbital Telemetry
           </div>
           <div className="text-slate-300">
             Lat: <span className="text-cyan-300 font-bold">{issData.latitude.toFixed(2)}°</span> | Lon: <span className="text-cyan-300 font-bold">{issData.longitude.toFixed(2)}°</span>
@@ -1201,6 +1411,21 @@ function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, se
 
           return (
             <React.Fragment key={launch.id}>
+              {showHazardZones && (
+                <>
+                  <Circle
+                    center={[lat, lon]}
+                    radius={35000}
+                    pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.15, weight: 1.5, dashArray: "4, 6" }}
+                  />
+                  <Circle
+                    center={[lat, lon]}
+                    radius={75000}
+                    pathOptions={{ color: "#f97316", fillColor: "#f97316", fillOpacity: 0.08, weight: 1, dashArray: "2, 4" }}
+                  />
+                </>
+              )}
+
               <CircleMarker
                 center={[lat, lon]}
                 radius={24}
@@ -1240,7 +1465,7 @@ function AdvancedLaunchPadMap({ launches, onSelect, issData, showDebrisRadar, se
   );
 }
 
-// --- MODAL ---
+// --- MODAL WITH FULL SATELLITE PURPOSE & IMPACT SUITE ---
 function LaunchModal({ launch, onClose }) {
   if (!launch) return null;
   return <LaunchModalContent launch={launch} onClose={onClose} />;
@@ -1253,13 +1478,23 @@ function LaunchModalContent({ launch, onClose }) {
   const [isCutaway, setIsCutaway] = useState(false);
   const [stagingStep, setStagingStep] = useState(0);
   const [isAutoStaging, setIsAutoStaging] = useState(false);
+  const [isFtsAborted, setIsFtsAborted] = useState(false);
   const [weather, setWeather] = useState(null);
 
   const config = useMemo(() => getMissionFlightConfig(launch), [launch]);
   const satSpecs = useMemo(() => getSatelliteSpecs(launch), [launch]);
   const riskAnalysis = useMemo(() => evaluateGoNoGoStatus(weather), [weather]);
+  const astroMath = useMemo(() => computeOrbitalMechanics(config.insertionAlt, config.targetAlt, config.inclinationDeg), [config]);
 
   const triggerCapComCallout = (message) => playCapComVoice(message);
+
+  const triggerFlightTermination = () => {
+    setIsFtsAborted(true);
+    setIsAutoStaging(false);
+    setIsPlayingFlight(false);
+    playAlarmSiren();
+    playCapComVoice("Warning! Flight Termination System armed and commanded. Vehicle destruct sequence initiated.");
+  };
 
   useEffect(() => {
     let timer = null;
@@ -1286,11 +1521,16 @@ function LaunchModalContent({ launch, onClose }) {
     let interval = null;
     if (isPlayingFlight) {
       interval = setInterval(() => {
-        setFlightElapsed((prev) => (prev >= config.maxFlightTime ? 0 : prev + 2));
+        setFlightElapsed((prev) => {
+          const next = prev >= config.maxFlightTime ? 0 : prev + 2;
+          const currentTelemetry = computeTelemetry(next, config);
+          sonifierEngine.updateVelocity(currentTelemetry.velocity);
+          return next;
+        });
       }, 80);
     }
     return () => clearInterval(interval);
-  }, [isPlayingFlight, config.maxFlightTime]);
+  }, [isPlayingFlight, config]);
 
   useEffect(() => {
     if (!launch?.pad?.latitude || !launch?.pad?.longitude) return;
@@ -1322,23 +1562,31 @@ function LaunchModalContent({ launch, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-black/85 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="bg-[#0b1329]/95 border border-cyan-500/40 rounded-3xl max-w-4xl w-full p-6 shadow-[0_0_50px_rgba(6,182,212,0.25)] relative text-slate-200 max-h-[94vh] flex flex-col">
+      <div className={`bg-[#0b1329]/95 border rounded-3xl max-w-4xl w-full p-6 relative text-slate-200 max-h-[94vh] flex flex-col transition-all ${
+        isFtsAborted ? "border-rose-500 shadow-[0_0_60px_rgba(244,63,94,0.5)]" : "border-cyan-500/40 shadow-[0_0_50px_rgba(6,182,212,0.25)]"
+      }`}>
         <button onClick={onClose} className="absolute top-5 right-5 p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer z-30">
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2.5 mb-2.5">
+        <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 bg-cyan-950/90 px-3 py-1 rounded-lg border border-cyan-700/60 shadow-sm">
             {launch.launch_service_provider?.name}
           </span>
           <span className="text-xs px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-medium">
-            {launch.status?.name}
+            {isFtsAborted ? "FTS TERMINATED" : launch.status?.name}
           </span>
           <button
             onClick={() => triggerCapComCallout(`CapCom telemetry status: ${rocketTitle} flight dynamics nominal.`)}
             className="text-[11px] bg-slate-900 hover:bg-cyan-950 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-700/50 flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" /> Radio CapCom
+          </button>
+          <button
+            onClick={triggerFlightTermination}
+            className="text-[11px] bg-rose-950/80 hover:bg-rose-900 text-rose-300 px-2.5 py-1 rounded-lg border border-rose-600/60 flex items-center gap-1.5 cursor-pointer font-bold transition-all shadow-[0_0_10px_rgba(244,63,94,0.3)]"
+          >
+            <Skull className="w-3.5 h-3.5 text-rose-400" /> Command FTS Abort
           </button>
         </div>
 
@@ -1349,6 +1597,7 @@ function LaunchModalContent({ launch, onClose }) {
           <span>Perigee &times; Apogee: <strong className="text-white">{config.insertionAlt} &times; {config.targetAlt.toLocaleString()} km</strong></span>
         </div>
 
+        {/* Modal Navigation Tabs */}
         <div className="flex items-center gap-2 mb-4 border-b border-slate-800/80 pb-3 flex-wrap">
           <button
             onClick={() => setModalTab("3d")}
@@ -1357,6 +1606,22 @@ function LaunchModalContent({ launch, onClose }) {
             }`}
           >
             <Box className="w-3.5 h-3.5" /> 3D Staging &amp; Payload Inspector
+          </button>
+          <button
+            onClick={() => setModalTab("purpose")}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              modalTab === "purpose" ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)]" : "bg-slate-900 text-slate-400 hover:text-white"
+            }`}
+          >
+            <Globe2 className="w-3.5 h-3.5" /> Payload Purpose &amp; Impact
+          </button>
+          <button
+            onClick={() => setModalTab("research")}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              modalTab === "research" ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)]" : "bg-slate-900 text-slate-400 hover:text-white"
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" /> Research Astrodynamics &amp; Math
           </button>
           <button
             onClick={() => setModalTab("overview")}
@@ -1384,6 +1649,7 @@ function LaunchModalContent({ launch, onClose }) {
           </button>
         </div>
 
+        {/* TAB 1: 3D STAGING */}
         {modalTab === "3d" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 h-[440px] overflow-y-auto">
             <div className="md:col-span-2 bg-[#050a17] rounded-2xl border border-cyan-500/30 relative overflow-hidden h-[420px] shadow-inner">
@@ -1391,14 +1657,15 @@ function LaunchModalContent({ launch, onClose }) {
                 <span className="bg-cyan-950/90 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-700 font-bold">
                   VEHICLE: {rocketTitle.toUpperCase()}
                 </span>
-                <span className="bg-[#0b1329]/90 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-800">
-                  EVENT: {stagingLabels[stagingStep]}
+                <span className={`px-2.5 py-1 rounded-lg border font-bold ${isFtsAborted ? "bg-rose-950 text-rose-300 border-rose-700" : "bg-[#0b1329]/90 text-amber-300 border-amber-800"}`}>
+                  EVENT: {isFtsAborted ? "FTS DISPERSION ACTIVATED" : stagingLabels[stagingStep]}
                 </span>
               </div>
 
               <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2 bg-[#050a17]/90 backdrop-blur-md p-2 rounded-2xl border border-slate-800 font-mono text-xs">
                 <button
                   onClick={() => setIsAutoStaging(!isAutoStaging)}
+                  disabled={isFtsAborted}
                   className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
                     isAutoStaging ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]" : "bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)]"
                   }`}
@@ -1411,6 +1678,7 @@ function LaunchModalContent({ launch, onClose }) {
                   {[0, 1, 2, 3, 4].map((step) => (
                     <button
                       key={step}
+                      disabled={isFtsAborted}
                       onClick={() => {
                         setIsAutoStaging(false);
                         setStagingStep(step);
@@ -1430,10 +1698,11 @@ function LaunchModalContent({ launch, onClose }) {
                 <button
                   onClick={() => {
                     setIsAutoStaging(false);
+                    setIsFtsAborted(false);
                     setStagingStep(0);
                   }}
                   className="p-1.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white cursor-pointer"
-                  title="Reset to Integrated Assembly"
+                  title="Reset Assembly"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -1456,6 +1725,7 @@ function LaunchModalContent({ launch, onClose }) {
                     satelliteVariant={satSpecs.meshVariant}
                     isCutaway={isCutaway}
                     stagingStep={stagingStep}
+                    isFtsAborted={isFtsAborted}
                   />
                 </Suspense>
                 <OrbitControls enablePan={false} />
@@ -1468,8 +1738,8 @@ function LaunchModalContent({ launch, onClose }) {
               </div>
               
               <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/60 text-cyan-300">
-                <span className="block text-[10px] text-slate-400 font-bold uppercase">CURRENT SEPARATION PHASE:</span>
-                <span className="font-extrabold text-xs">{stagingLabels[stagingStep]}</span>
+                <span className="block text-[10px] text-slate-400 font-bold uppercase">SEPARATION STATUS:</span>
+                <span className="font-extrabold text-xs">{isFtsAborted ? "TERMINATION EXECUTED" : stagingLabels[stagingStep]}</span>
               </div>
 
               <div className="space-y-2 text-[11px]">
@@ -1483,6 +1753,130 @@ function LaunchModalContent({ launch, onClose }) {
           </div>
         )}
 
+        {/* TAB 2: PAYLOAD PURPOSE & IMPACT (THE NEW SATELLITE DOSSIER) */}
+        {modalTab === "purpose" && (
+          <div className="overflow-y-auto pr-2 space-y-4 flex-1 font-mono text-xs">
+            <div className="bg-[#050a17] border border-indigo-500/40 p-4 rounded-2xl shadow-xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                <span className="text-indigo-400 font-extrabold uppercase text-xs flex items-center gap-2">
+                  <Globe2 className="w-4 h-4 text-indigo-400" /> Operational Launch Intent &amp; Mission Rationale
+                </span>
+                <span className="bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 px-3 py-1 rounded-lg font-bold text-[11px]">
+                  {satSpecs.badgeText}
+                </span>
+              </div>
+              <p className="text-slate-200 text-xs leading-relaxed bg-[#0b1329] p-3.5 rounded-xl border border-slate-800/80">
+                {satSpecs.intention}
+              </p>
+            </div>
+
+            <div className="bg-[#050a17] border border-cyan-900/40 p-4 rounded-2xl shadow-xl">
+              <span className="text-emerald-400 font-extrabold uppercase text-xs flex items-center gap-2 mb-3">
+                <HeartHandshake className="w-4 h-4 text-emerald-400" /> Real-World Outcomes of a Successful Deployment
+              </span>
+              <div className="space-y-2.5">
+                {satSpecs.keyOutcomes.map((outcome, idx) => (
+                  <div key={idx} className="p-3 bg-[#0b1329] border border-slate-800 rounded-xl flex items-start gap-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="text-slate-300 leading-snug">{outcome}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-[#050a17] border border-cyan-900/40 p-4 rounded-2xl shadow-xl">
+              <span className="text-cyan-400 font-extrabold uppercase text-xs flex items-center gap-2 mb-2">
+                <Cpu className="w-4 h-4 text-cyan-400" /> Academic &amp; Engineering Research Relevance
+              </span>
+              <div className="p-3 bg-[#0b1329] border border-slate-800 rounded-xl text-slate-300">
+                {satSpecs.academicFocus}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: RESEARCH ASTRODYNAMICS & MATH */}
+        {modalTab === "research" && (
+          <div className="overflow-y-auto pr-2 space-y-4 flex-1 font-mono text-xs">
+            <div className="flex items-center justify-between bg-[#050a17] border border-cyan-500/30 p-4 rounded-2xl shadow-xl">
+              <div>
+                <span className="text-cyan-400 font-extrabold uppercase text-xs flex items-center gap-2">
+                  <Calculator className="w-4 h-4 text-cyan-400" /> Keplerian Orbital Elements &amp; Tsiolkovsky Engine
+                </span>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Analytical astrodynamics matrices calculated for research modeling &amp; orbital simulation
+                </p>
+              </div>
+              <button
+                onClick={() => exportTelemetryCSV(launch, config)}
+                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> Export Raw .CSV Telemetry
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">SEMI-MAJOR AXIS (a)</span>
+                <span className="text-lg font-extrabold text-cyan-300">{astroMath.semiMajorAxis.toLocaleString()} km</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Geometric orbit center radius</span>
+              </div>
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">ECCENTRICITY (e)</span>
+                <span className="text-lg font-extrabold text-cyan-300">{astroMath.eccentricity}</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">{parseFloat(astroMath.eccentricity) < 0.05 ? "Near-Circular Orbit" : "Elliptical Transfer"}</span>
+              </div>
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">ORBITAL PERIOD (T)</span>
+                <span className="text-lg font-extrabold text-cyan-300">{astroMath.periodMin} min</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Mean revolution duration</span>
+              </div>
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">SPECIFIC ENERGY (E)</span>
+                <span className="text-lg font-extrabold text-cyan-300">{astroMath.energy} MJ/kg</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Total orbital vis-viva potential</span>
+              </div>
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">PERIGEE VELOCITY (V_p)</span>
+                <span className="text-lg font-extrabold text-emerald-300">{parseInt(astroMath.v_perigee).toLocaleString()} km/h</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Max orbital velocity peak</span>
+              </div>
+              <div className="bg-[#0b1329] p-3.5 rounded-xl border border-cyan-900/40">
+                <span className="text-slate-400 text-[10px] block font-bold">APOGEE VELOCITY (V_a)</span>
+                <span className="text-lg font-extrabold text-amber-300">{parseInt(astroMath.v_apogee).toLocaleString()} km/h</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Min orbital velocity apogee</span>
+              </div>
+            </div>
+
+            <div className="bg-[#050a17] border border-cyan-900/40 rounded-2xl p-4">
+              <span className="text-xs font-bold uppercase text-cyan-400 block mb-2">
+                Tsiolkovsky Rocket Equation &amp; Mass Budget Solver
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-3">
+                <div className="p-3 bg-[#0b1329] rounded-xl border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">TOTAL MISSION DELTA-V</span>
+                  <span className="text-base font-extrabold text-white">{astroMath.deltaV.toLocaleString()} m/s</span>
+                  <span className="text-[9px] text-slate-500 block">Sufficient for LEO/GTO orbital insertion</span>
+                </div>
+                <div className="p-3 bg-[#0b1329] rounded-xl border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">WEIGHTED CORE SPECIFIC IMPULSE</span>
+                  <span className="text-base font-extrabold text-cyan-300">{astroMath.isp} seconds</span>
+                  <span className="text-[9px] text-slate-500 block">Effective staged exhaust velocity</span>
+                </div>
+                <div className="p-3 bg-[#0b1329] rounded-xl border border-slate-800">
+                  <span className="text-slate-400 block text-[10px]">THEORETICAL PAYLOAD FRACTION</span>
+                  <span className="text-base font-extrabold text-emerald-400">{astroMath.payloadFraction}%</span>
+                  <span className="text-[9px] text-slate-500 block">Structural mass efficiency</span>
+                </div>
+              </div>
+              <div className="p-3 bg-[#0b1329]/60 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
+                <strong className="text-slate-300 font-mono">Formula:</strong> delta_V = Isp * g0 * ln(m0 / mf) | Evaluated using standard gravitational acceleration (g0 = 9.80665 m/s^2).
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: OVERVIEW */}
         {modalTab === "overview" && (
           <div className="overflow-y-auto pr-2 space-y-4 flex-1 font-mono text-xs">
             <div className="bg-[#050a17] border border-cyan-500/30 rounded-2xl p-4 shadow-xl">
@@ -1571,6 +1965,7 @@ function LaunchModalContent({ launch, onClose }) {
           </div>
         )}
 
+        {/* TAB 5: VIDEO */}
         {modalTab === "video" && (
           <VideoCinemaHUD 
             launch={launch}
@@ -1582,6 +1977,7 @@ function LaunchModalContent({ launch, onClose }) {
           />
         )}
 
+        {/* TAB 6: TELEMETRY */}
         {modalTab === "telemetry" && (
           <div className="flex-1 overflow-y-auto pr-1 space-y-3">
             <div className="flex items-center justify-between bg-[#050a17] border border-slate-800 p-3 rounded-xl">
@@ -1644,8 +2040,10 @@ function CommandPalette({ isOpen, onClose, onAction, launches }) {
   const quickActions = [
     { id: "radar-dark", title: "Switch View: Tactical Radar Map", category: "Navigation", execute: () => onAction("view-map") },
     { id: "grid-cards", title: "Switch View: Launch Grid Cards", category: "Navigation", execute: () => onAction("view-grid") },
+    { id: "toggle-hazard", title: "Toggle Spaceport Blast Hazard Exclusion Zones", category: "Range Safety", execute: () => onAction("toggle-hazard") },
     { id: "toggle-debris", title: "Toggle Space Debris Conjunction Layer", category: "Radar Layers", execute: () => onAction("toggle-debris") },
     { id: "toggle-terminator", title: "Toggle Day/Night Solar Terminator", category: "Radar Layers", execute: () => onAction("toggle-terminator") },
+    { id: "toggle-sonifier", title: "Toggle Live Acoustic Telemetry Sonification Audio", category: "Audio Engine", execute: () => onAction("toggle-sonifier") },
     { id: "test-capcom", title: "Radio Test: CapCom Transmission & Quindar Tones", category: "Audio Test", execute: () => onAction("test-capcom") },
     { id: "test-rumble", title: "Audio Test: Booster Acoustic Rumble Resonance", category: "Audio Test", execute: () => onAction("test-rumble") },
   ];
@@ -1728,6 +2126,8 @@ export default function App() {
   const [missionTab, setMissionTab] = useState("upcoming");
   const [showDebrisRadar, setShowDebrisRadar] = useState(true);
   const [showTerminator, setShowTerminator] = useState(true);
+  const [showHazardZones, setShowHazardZones] = useState(true);
+  const [isSonifierActive, setIsSonifierActive] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -1758,11 +2158,19 @@ export default function App() {
       const updated = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
       try {
         localStorage.setItem("tracked_space_launches", JSON.stringify(updated));
-      } catch {
-        // quota
-      }
+      } catch {}
       return updated;
     });
+  };
+
+  const toggleSonifier = () => {
+    if (isSonifierActive) {
+      sonifierEngine.stop();
+      setIsSonifierActive(false);
+    } else {
+      sonifierEngine.start();
+      setIsSonifierActive(true);
+    }
   };
 
   const fetchLaunches = async (type = missionTab) => {
@@ -1800,15 +2208,16 @@ export default function App() {
             altitude: data.altitude,
             velocity: data.velocity,
           });
+          if (isSonifierActive) {
+            sonifierEngine.updateVelocity(data.velocity);
+          }
         }
-      } catch {
-        // silent
-      }
+      } catch {}
     };
     fetchIss();
     const interval = setInterval(fetchIss, 3500);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSonifierActive]);
 
   const handleSimulateCountdown = (launch) => {
     const simulatedDate = new Date(Date.now() + 10000).toISOString();
@@ -1842,8 +2251,10 @@ export default function App() {
   const handleCommandPaletteAction = (action, payload) => {
     if (action === "view-map") setViewMode("map");
     if (action === "view-grid") setViewMode("grid");
+    if (action === "toggle-hazard") setShowHazardZones(prev => !prev);
     if (action === "toggle-debris") setShowDebrisRadar(prev => !prev);
     if (action === "toggle-terminator") setShowTerminator(prev => !prev);
+    if (action === "toggle-sonifier") toggleSonifier();
     if (action === "test-capcom") playCapComVoice("CapCom radio loop communication verification test. Standing by.");
     if (action === "test-rumble") playRumbleSound();
     if (action === "open-launch") setSelectedLaunch(payload);
@@ -1851,12 +2262,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 p-4 md:p-8 relative selection:bg-cyan-500 selection:text-black">
-      {/* Deep Cyber Radial Atmospheric Glows */}
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
       <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
 
       <div className="max-w-7xl mx-auto">
-        {/* Top Mission Control Quick Metric Bar */}
+        {/* Metric Overview Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 font-mono text-xs">
           <div className="bg-[#0b1329]/70 backdrop-blur-md p-3 rounded-2xl border border-cyan-900/40 flex items-center justify-between">
             <span className="text-slate-400">TRACKED VEHICLES</span>
@@ -1867,12 +2277,12 @@ export default function App() {
             <span className="text-emerald-400 font-extrabold">{issData ? `${Math.round(issData.velocity)} km/h` : "ACQUIRING..."}</span>
           </div>
           <div className="bg-[#0b1329]/70 backdrop-blur-md p-3 rounded-2xl border border-cyan-900/40 flex items-center justify-between">
-            <span className="text-slate-400">CONJUNCTION RISK</span>
-            <span className="text-amber-400 font-extrabold">3 CATALOGED</span>
+            <span className="text-slate-400">RESEARCH EXPORTS</span>
+            <span className="text-amber-400 font-extrabold">CSV/MATH ENABLED</span>
           </div>
           <div className="bg-[#0b1329]/70 backdrop-blur-md p-3 rounded-2xl border border-cyan-900/40 flex items-center justify-between">
             <span className="text-slate-400">CAPCOM LOOP</span>
-            <span className="text-cyan-300 font-extrabold">2525 HZ NOMINAL</span>
+            <span className="text-cyan-300 font-extrabold">2525 HZ ACTIVE</span>
           </div>
         </div>
 
@@ -1885,11 +2295,11 @@ export default function App() {
               </h1>
             </div>
             <p className="text-xs md:text-sm text-slate-400">
-              Live orbital manifests &bull; CapCom mission audio &bull; 3D vehicle staging &bull; AI launch risk analysis
+              Live orbital manifests &bull; Research astrodynamics &bull; 3D vehicle staging &bull; AI risk &amp; debris radar
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
               className="hidden lg:flex items-center gap-2 bg-[#0b1329] hover:bg-[#111f44] text-slate-300 border border-cyan-900/40 px-3.5 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer shadow-md"
@@ -1897,6 +2307,19 @@ export default function App() {
               <Terminal className="w-3.5 h-3.5 text-cyan-400" />
               <span>Command Palette</span>
               <kbd className="bg-slate-900 border border-slate-800 text-[10px] px-1.5 py-0.5 rounded text-cyan-400 font-bold">Ctrl+K</kbd>
+            </button>
+
+            <button
+              onClick={toggleSonifier}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer font-mono ${
+                isSonifierActive 
+                  ? "bg-cyan-500 text-black border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.4)]" 
+                  : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+              }`}
+              title="Toggle Acoustic Telemetry Sonification"
+            >
+              <Waves className="w-4 h-4" />
+              <span>{isSonifierActive ? "Sonifier: ON" : "Sonifier: OFF"}</span>
             </button>
 
             <div className="bg-[#0b1329]/90 border border-cyan-900/40 rounded-2xl p-1 flex items-center shadow-lg">
@@ -2036,6 +2459,8 @@ export default function App() {
                 setShowDebrisRadar={setShowDebrisRadar}
                 showTerminator={showTerminator}
                 setShowTerminator={setShowTerminator}
+                showHazardZones={showHazardZones}
+                setShowHazardZones={setShowHazardZones}
                 onSelect={(selected) => setSelectedLaunch(selected)}
               />
             )}
